@@ -53,7 +53,7 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
 
   ipd_data_sorted <- dplyr::arrange(ipd_data_filtered, desc(IPD))
 
-  top_5_teams <- head(ipd_data_sorted, 5)
+  top_5_teams <- head(ipd_data_sorted, 7)
 
   # Preparar o prompt para o Gemini
   prompt_template <- paste0(
@@ -69,6 +69,11 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
     "[Controle de Qualidade]\n",
     "Você deve se basear nos exemplos ilustrativos fornecidos para entender o estilo e o tipo de informação qualitativa a ser incluída.\n",
     "O novo texto deve ser original e focar nos dados do ranking atual, destacando a posição atual e a variação de ranking (dif_ranking).\n",
+    "Se os players Itaú, Bradesco, Nubank, Banco do Brasil e Santander estiverem no ranking, eles devem sempre ser mencionados.\n",
+    "Em caso de algum player subir 2 ou mais posições, você deve mencionar ele na análise.\n",
+    "Em caso de algum player cair 3 ou mais posições, você mencionar ele na análise.\n",
+    "Evitar redunâncias e palavras repitidas.\n",
+    "Você pode mencionar no maximo 7 players, se você avaliar que faz sentido para a análise e se ficar interessante para a história do relatório. Em caso de nenhum player crescer ou cair mais posições do que o estabelecido você pode mencionar menos de 7 players.\n",
     "A cada pedido, você deve gerar um novo texto.\n\n",
     "[Tarefa]\n",
     "Gerar um parágrafo de texto a partir das orientações elencadas anteriormente e do seguinte ranking de popularidade digital para o período %CURRENT_PERIOD_DISPLAY% (Nome do Player, IPD, Variação de Posição em relação à semana anterior):\n",
