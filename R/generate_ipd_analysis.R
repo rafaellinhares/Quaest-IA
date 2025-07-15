@@ -53,7 +53,7 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
 
   ipd_data_sorted <- dplyr::arrange(ipd_data_filtered, desc(IPD))
 
-  top_5_teams <- head(ipd_data_sorted, 7)
+  top_5_teams <- head(ipd_data_sorted, 20)
 
   # Preparar o prompt para o Gemini
   prompt_template <- paste0(
@@ -74,6 +74,7 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
     "Em caso de algum player cair 3 ou mais posições, você mencionar ele na análise.\n",
     "Evitar redunâncias e palavras repitidas.\n",
     "Você pode mencionar no maximo 7 players, se você avaliar que faz sentido para a análise e se ficar interessante para a história do relatório. Em caso de nenhum player crescer ou cair mais posições do que o estabelecido você pode mencionar menos de 7 players.\n",
+    "Evite usar frases consideras 'encher linguiça' como 'impulsionado por estratégias de engajamento digital' mas mantenha um volume de palaras razoável para o parágrafo.\n",
     "A cada pedido, você deve gerar um novo texto.\n\n",
     "[Tarefa]\n",
     "Gerar um parágrafo de texto a partir das orientações elencadas anteriormente e do seguinte ranking de popularidade digital para o período %CURRENT_PERIOD_DISPLAY% (Nome do Player, IPD, Variação de Posição em relação à semana anterior):\n",

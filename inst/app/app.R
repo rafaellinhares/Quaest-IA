@@ -5,9 +5,11 @@ ui <- fluidPage(
   title = "Quaest IA",
   theme = shinytheme("flatly"),
 
-  shinyjs::useShinyjs(),
+  shinyjs::useShinyjs(), # Necessário para o botão de copiar
 
   tags$head(
+    # Adicionar Font Awesome para o ícone de copiar
+    tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"),
     tags$style(HTML("
       .logo-container {
         position: absolute;
@@ -23,11 +25,34 @@ ui <- fluidPage(
       body {
         padding-top: 40px;
       }
+      /* Estilo para o container da análise e botão de copiar */
+      .analysis-container {
+        position: relative;
+        padding-right: 50px; /* Espaço para o botão */
+      }
+      .copy-button-container {
+        position: absolute;
+        top: 10px; /* Ajuste a posição vertical */
+        right: 10px; /* Ajuste a posição horizontal */
+        z-index: 10;
+      }
+      .copy-button {
+        background-color: #28a745; /* Cor verde */
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .copy-button:hover {
+        background-color: #218838; /* Verde mais escuro no hover */
+      }
     "))
   ),
 
   tags$div(class = "logo-container",
-           tags$img(src = "quaest_azul_logo.png", alt = "Logo Quaest")
+           tags$img(src = "quaest_azul_logo.png", alt = "Logo Quaest") # <--- ALTERAÇÃO AQUI: ADICIONADO .png DE VOLTA
   ),
 
   titlePanel(
@@ -84,13 +109,6 @@ ui <- fluidPage(
 
       br(),
 
-      downloadButton(
-        outputId = "download_report",
-        label = "Baixar Relatório Word",
-        icon = icon("file-word"),
-        class = "btn-success btn-lg btn-block"
-      ),
-
       br(),
       uiOutput("status_message")
     ),
@@ -99,9 +117,19 @@ ui <- fluidPage(
       width = 8,
       tags$h3("Análise Gerada", style = "color: #34495e;"),
 
-      wellPanel(
-        style = "background-color: #ecf0f1; border-color: #bdc3c7; min-height: 500px; overflow-y: auto;",
-        verbatimTextOutput("analysis_output")
+      tags$div(class = "analysis-container",
+               tags$div(class = "copy-button-container",
+                        actionButton(
+                          inputId = "copy_button",
+                          label = "",
+                          icon = icon("copy"),
+                          class = "copy-button"
+                        )
+               ),
+               wellPanel(
+                 style = "background-color: #ecf0f1; border-color: #bdc3c7; min-height: 500px; overflow-y: auto;",
+                 htmlOutput("analysis_output_paragraph")
+               )
       )
     )
   )
@@ -115,11 +143,10 @@ server <- function(input, output, session) {
   observeEvent(input$generate_button, {
 
     analysis_result(NULL)
-    output$analysis_output <- renderText("Gerando análise... Por favor, aguarde.")
+    output$analysis_output_paragraph <- renderText("Gerando análise... Por favor, aguarde.")
     output$status_message <- renderUI(NULL)
 
     shinyjs::disable("generate_button")
-    shinyjs::disable("download_report")
 
     withProgress(message = 'Processando Análise', value = 0, {
 
@@ -174,63 +201,50 @@ server <- function(input, output, session) {
       incProgress(0.4, detail = "Lendo dados IPD e preparando prompt...")
 
       tryCatch({
-        # CHAMADA QUALIFICADA DA FUNÇÃO DO PACOTE: generate_ipd_analysis
-        result <- quaestia::generate_ipd_analysis(file_info_uploaded, api_key, historical_analyses_text) # <-- AQUI ESTÁ A MUDANÇA
+        result <- quaestia::generate_ipd_analysis(file_info_uploaded, api_key, historical_analyses_text)
         analysis_result(result)
 
         incProgress(0.9, detail = "Analise concluida!")
 
-        output$analysis_output <- renderText({
-          analysis_result()
+        output$analysis_output_paragraph <- renderUI({
+          tags$p(analysis_result())
         })
 
         output$status_message <- renderUI({
           tags$div(class = "alert alert-success", role = "alert",
-                   "Analise gerada com sucesso! Voce pode baixar o relatorio Word.")
+                   "Analise gerada com sucesso! Você pode copiar o texto.")
         })
-        shinyjs::enable("download_report")
 
       }, error = function(e) {
         analysis_result(NULL)
         error_message_display <- paste("Erro ao gerar analise:", e$message, "\nPor favor, verifique a API Key, os arquivos (nomes das colunas 'profile', 'ipd', 'periodo', 'dif_ranking' no IPD, e 'analise' no historico) ou sua conexao com a internet.")
 
-        output$analysis_output <- renderText(error_message_display)
+        output$analysis_output_paragraph <- renderText(error_message_display)
         output$status_message <- renderUI({
           tags$div(class = "alert alert-danger", role = "alert",
                    paste("Erro ao gerar analise:", e$message))
         })
-        shinyjs::disable("download_report")
       }, finally = {
         shinyjs::enable("generate_button")
       })
     })
   })
 
-  output$analysis_output <- renderText({
-    if (is.null(analysis_result())) {
-      "A analise sera exibida aqui apos a geracao."
-    } else {
-      analysis_result()
-    }
+  observeEvent(input$copy_button, {
+    req(analysis_result())
+
+    shinyjs::runjs(paste0("
+      var textToCopy = document.getElementById('analysis_output_paragraph').innerText;
+      var dummy = document.createElement('textarea');
+      document.body.appendChild(dummy);
+      dummy.value = textToCopy;
+      dummy.select();
+      document.execCommand('copy');
+      document.body.removeChild(dummy);
+      alert('Texto copiado para a área de transferência!');
+    "))
   })
 
-  output$download_report <- downloadHandler(
-    filename = function() {
-      paste0("Relatorio_IPD_", format(Sys.Date(), "%Y%m%d"), ".docx")
-    },
-    content = function(file) {
-      if (is.null(analysis_result())) {
-        stop("Nao ha analise para exportar. Por favor, gere a analise primeiro.")
-      }
-
-      officer::read_docx() %>%
-        officer::body_add_par("Relatorio de Analise de Popularidade Digital", style = "heading 1") %>%
-        officer::body_add_par(paste("Data da Analise:", format(Sys.Date(), "%d/%m/%Y")), style = "Normal") %>%
-        officer::body_add_par("", style = "Normal") %>%
-        officer::body_add_par(analysis_result(), style = "Normal") %>%
-        print(target = file)
-    }
-  )
 }
 
 shinyApp(ui = ui, server = server)
