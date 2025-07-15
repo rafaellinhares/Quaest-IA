@@ -134,7 +134,7 @@ ui <- fluidPage(
         placeholder = "Ex: 'Focar na campanha de marketing do Banco X.' ou 'A análise deve ser mais formal.'",
         rows = 3
       ),
-      helpText("Informações adicionais para guiar a IA na geração da análise. Tem prioridade sobre o prompt padrão."),
+      helpText("Informações adicionais para guiar a IA na geração da análise tem prioridade sobre o prompt padrão."),
 
       hr(),
 
