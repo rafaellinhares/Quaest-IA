@@ -4,7 +4,8 @@
 #' @importFrom readxl read_excel
 #' @importFrom dplyr filter arrange
 #' @importFrom lubridate parse_date_time
-generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text = "") {
+# NOVO ARGUMENTO: user_context
+generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text = "", user_context = "") { # <--- ADICIONADO user_context = ""
   if (is.null(file_info)) {
     stop("Por favor, carregue um arquivo (Excel ou CSV).")
   }
@@ -15,7 +16,7 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
   ipd_data <- NULL
 
   if (file_ext == "xlsx") {
-    ipd_data <- readxl::read_excel(file_path) # Use readxl::read_excel explicitamente
+    ipd_data <- readxl::read_excel(file_path)
   } else if (file_ext == "csv") {
     ipd_data <- read.csv(file_path, header = TRUE, sep = ",")
   } else {
@@ -51,12 +52,16 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
 
   ipd_data_filtered <- dplyr::filter(ipd_data_current_period, !grepl("caixa", tolower(Profile)))
 
-  ipd_data_sorted <- dplyr::arrange(ipd_data_filtered, desc(IPD))
+  # Pegar os 20 primeiros colocados (como no seu código atual)
+  # O prompt foi atualizado para lidar com a quantidade de players, o `head()` aqui é apenas para ter um conjunto de dados para processar
+  top_x_teams <- head(ipd_data_filtered, 20)
 
-  top_5_teams <- head(ipd_data_sorted, 20)
 
   # Preparar o prompt para o Gemini
   prompt_template <- paste0(
+    # NOVO: Adiciona o contexto do usuário com prioridade
+    ifelse(nchar(user_context) > 0, paste0("[INSTRUÇÕES ADICIONAIS E PRIORITÁRIAS DO USUÁRIO]\n", user_context, "\n\n"), ""), # <--- ADIÇÃO AQUI, com um título claro para a IA
+
     "Olá Gemini, tudo bem? Então, vou te passar o seguinte prompt.\n\n",
     "[Papel e Estilo]\n",
     "# Você é um analista de mídias sociais, especializado em pesquisas envolvendo publicidade, marketing e métricas de redes sociais. Sua escrita apresenta um tom analítico com um pouco de tom jornalístico.\n\n",
@@ -75,7 +80,8 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
     "Evitar redunâncias e palavras repitidas.\n",
     "Você pode mencionar no maximo 7 players, se você avaliar que faz sentido para a análise e se ficar interessante para a história do relatório. Em caso de nenhum player crescer ou cair mais posições do que o estabelecido você pode mencionar menos de 7 players.\n",
     "Evite usar frases consideras 'encher linguiça' como 'impulsionado por estratégias de engajamento digital' mas mantenha um volume de palaras razoável para o parágrafo.\n",
-    "A cada pedido, você deve gerar um novo texto.\n\n",
+    "A cada pedido, você deve gerar um novo texto.\n",
+    "Em caso de conflito, as informações fornecidas em '[INSTRUÇÕES ADICIONAIS E PRIORITÁRIAS DO USUÁRIO]' têm precedência.\n\n", # <--- NOVO: Regra de prioridade no Controle de Qualidade
     "[Tarefa]\n",
     "Gerar um parágrafo de texto a partir das orientações elencadas anteriormente e do seguinte ranking de popularidade digital para o período %CURRENT_PERIOD_DISPLAY% (Nome do Player, IPD, Variação de Posição em relação à semana anterior):\n",
     "%RANKING_DATA%"
@@ -83,7 +89,7 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
 
   final_prompt_with_examples <- gsub("%HISTORICAL_ANALYSES%", historical_analyses_text, prompt_template)
 
-  current_period_display <- unique(top_5_teams$Periodo)
+  current_period_display <- unique(top_x_teams$Periodo) # USAR top_x_teams AQUI
   if (length(current_period_display) > 1 || !grepl("\\d{4}", current_period_display[1])) {
     current_period_display <- current_period_display[1]
   } else {
@@ -91,20 +97,20 @@ generate_ipd_analysis <- function(file_info, api_key, historical_analyses_text =
   }
 
   ranking_text <- ""
-  for (i in 1:nrow(top_5_teams)) {
+  for (i in 1:nrow(top_x_teams)) { # USAR top_x_teams AQUI
     dif_ranking_text <- ""
-    if (!is.na(top_5_teams$Dif_Ranking[i])) {
-      if (top_5_teams$Dif_Ranking[i] > 0) {
-        dif_ranking_text <- paste0(" (subiu ", top_5_teams$Dif_Ranking[i], " posicoes)")
-      } else if (top_5_teams$Dif_Ranking[i] < 0) {
-        dif_ranking_text <- paste0(" (caiu ", abs(top_5_teams$Dif_Ranking[i]), " posicoes)")
+    if (!is.na(top_x_teams$Dif_Ranking[i])) {
+      if (top_x_teams$Dif_Ranking[i] > 0) {
+        dif_ranking_text <- paste0(" (subiu ", top_x_teams$Dif_Ranking[i], " posicoes)")
+      } else if (top_x_teams$Dif_Ranking[i] < 0) {
+        dif_ranking_text <- paste0(" (caiu ", abs(top_x_teams$Dif_Ranking[i]), " posicoes)")
       } else {
         dif_ranking_text <- " (manteve a posicao)"
       }
     }
     ranking_text <- paste0(ranking_text,
-                           top_5_teams$Profile[i], " (", top_5_teams$IPD[i], ")", dif_ranking_text,
-                           ifelse(i < nrow(top_5_teams), ", ", "."))
+                           top_x_teams$Profile[i], " (", top_x_teams$IPD[i], ")", dif_ranking_text,
+                           ifelse(i < nrow(top_x_teams), ", ", "."))
   }
 
   full_prompt <- gsub("%RANKING_DATA%", ranking_text, final_prompt_with_examples)

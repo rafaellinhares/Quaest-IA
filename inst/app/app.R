@@ -48,11 +48,37 @@ ui <- fluidPage(
       .copy-button:hover {
         background-color: #218838; /* Verde mais escuro no hover */
       }
+      /* Ajuste para as caixas de texto */
+      .form-group.shiny-input-container {
+        margin-bottom: 5px; /* Reduz o espaço entre os inputs, de 8px para 5px */
+      }
+      .form-group.shiny-input-container label {
+        margin-bottom: 1px; /* Reduz espaço entre label e input, de 2px para 1px */
+        font-size: 13px; /* Mantém o tamanho da fonte dos rótulos */
+      }
+      .form-control {
+        padding: 6px 8px; /* Mantém o padding interno dos inputs */
+        height: auto; /* Garante que a altura seja ajustada ao conteúdo */
+        font-size: 13px; /* Mantém o tamanho da fonte do texto dentro dos inputs */
+      }
+      .btn { /* Mantém o tamanho dos botões */
+        padding: 6px 12px;
+        font-size: 14px;
+      }
+      hr { /* Ajusta o espaçamento das linhas divisórias */
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
+      .help-block { /* Ajusta o espaçamento do texto de ajuda */
+        margin-top: 5px;
+        margin-bottom: 5px;
+        font-size: 11px; /* Pode diminuir a fonte se quiser economizar mais espaço */
+      }
     "))
   ),
 
   tags$div(class = "logo-container",
-           tags$img(src = "quaest_azul_logo.png", alt = "Logo Quaest") # <--- ALTERAÇÃO AQUI: ADICIONADO .png DE VOLTA
+           tags$img(src = "quaest_azul_logo.png", alt = "Logo Quaest")
   ),
 
   titlePanel(
@@ -97,6 +123,18 @@ ui <- fluidPage(
         placeholder = "Nenhum arquivo selecionado"
       ),
       helpText("Este arquivo é opcional e deve conter uma coluna chamada 'analise' com exemplos de análises anteriores."),
+
+      hr(),
+
+      # Caixa de texto para contexto adicional
+      textAreaInput(
+        inputId = "context_input",
+        label = tags$b("Contexto Adicional para a Análise (Opcional):"),
+        value = "",
+        placeholder = "Ex: 'Focar na campanha de marketing do Banco X.' ou 'A análise deve ser mais formal.'",
+        rows = 3
+      ),
+      helpText("Informações adicionais para guiar a IA na geração da análise. Tem prioridade sobre o prompt padrão."),
 
       hr(),
 
@@ -198,10 +236,17 @@ server <- function(input, output, session) {
         })
       }
 
+      user_context_input <- input$context_input
+
       incProgress(0.4, detail = "Lendo dados IPD e preparando prompt...")
 
       tryCatch({
-        result <- quaestia::generate_ipd_analysis(file_info_uploaded, api_key, historical_analyses_text)
+        result <- quaestia::generate_ipd_analysis(
+          file_info_uploaded,
+          api_key,
+          historical_analyses_text,
+          user_context = user_context_input
+        )
         analysis_result(result)
 
         incProgress(0.9, detail = "Analise concluida!")
